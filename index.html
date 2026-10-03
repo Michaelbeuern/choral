@@ -34,6 +34,8 @@ body{margin:0}
   --violet:#5A3A8E;
   --on-violet:#FFFFFF;
   --hair:#D7D3DD;
+  --now:#C0261F;
+  --halo:#FFD45C;
   --display:"Alegreya", Georgia, "Times New Roman", serif;
   --ui:"Alegreya Sans", "Segoe UI", system-ui, sans-serif;
 }
@@ -41,12 +43,14 @@ body{margin:0}
   :root:not([data-theme="light"]){
     --paper:#16151B; --panel:#211F29; --ink:#ECE9F2; --muted:#9F99AB;
     --rubric:#E26B70; --violet:#B99DE8; --on-violet:#16151B; --hair:#34313E;
+    --now:#FFB03A; --halo:#5B3E9C;
     color-scheme:dark;
   }
 }
 :root[data-theme="dark"]{
   --paper:#16151B; --panel:#211F29; --ink:#ECE9F2; --muted:#9F99AB;
   --rubric:#E26B70; --violet:#B99DE8; --on-violet:#16151B; --hair:#34313E;
+  --now:#FFB03A; --halo:#5B3E9C;
   color-scheme:dark;
 }
 *{box-sizing:border-box}
@@ -110,6 +114,12 @@ body{background:var(--paper);color:var(--ink);font-family:var(--ui);font-size:16
 .empty-state{padding:28px;border-radius:14px;background:var(--panel);color:var(--muted);font-size:15px}
 .empty-state b{color:var(--ink);font-family:var(--display);font-size:20px;font-weight:500;display:block;margin-bottom:4px}
 .list .empty{padding:6px 12px 10px;font-size:13px!important;color:var(--muted);font-size:14px}
+.filters{display:flex;flex-direction:column;gap:8px}
+.frow{display:flex;gap:8px}
+.frow select{flex:1;min-width:0;font-size:14px;padding:6px 8px}
+.fstat{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--muted);min-height:0}
+.linkbtn{font:inherit;font-size:13px;background:none;border:0;color:var(--violet);cursor:pointer;padding:0;text-decoration:underline;text-underline-offset:2px}
+.list .inc{display:block;font-family:var(--display);font-style:italic;font-size:14px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .search{font:inherit;font-size:15px;padding:7px 11px;border-radius:9px;border:1px solid var(--hair);background:var(--paper);color:var(--ink);width:100%}
 .libnote{font-size:13px;color:var(--muted);margin:0}
 .libnote.warn{color:var(--rubric)}
@@ -141,8 +151,10 @@ header .sub{color:var(--muted);font-size:15px;margin:0;min-height:1.2em}
 #score svg.Exsurge line,#score svg.Exsurge .staffLine{stroke:var(--rubric)}
 #score svg.Exsurge .neumeLine,#score svg.Exsurge .dividerLine,#score svg.Exsurge .horizontalEpisema{fill:var(--ink)}
 #score svg.Exsurge .note,#score svg.Exsurge .lyric{cursor:pointer}
-#score svg.Exsurge use.on{fill:var(--violet)}
-#score svg.Exsurge text.on{fill:var(--violet)}
+#score svg.Exsurge use.on{fill:var(--now)}
+#score svg.Exsurge text.on{fill:var(--now);font-weight:700}
+#score svg.Exsurge .hl{fill:var(--halo);pointer-events:none}
+#score svg.Exsurge .hl-syl{fill:var(--halo);opacity:.55;pointer-events:none}
 .score .msg{padding:18px;border-radius:12px;background:var(--panel);color:var(--muted)}
 .score .msg.err{color:var(--rubric)}
 .hint{font-size:13px;color:var(--muted);margin:8px 0 0}
@@ -223,7 +235,11 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:13px/1.45 ui-monospace
       <div class="lk-act"><button class="btn small" id="rescan" type="button">Einlesen</button><button class="btn small" id="unhide" type="button" hidden></button><button class="btn small" id="unlink" type="button">Verknüpfung lösen</button></div>
     </div>
     <div class="undo" id="undo" hidden><span id="undoText"></span><button class="btn small" id="undoBtn" type="button">Rückgängig</button></div>
-    <input class="search" id="search" type="search" placeholder="Suchen …" aria-label="Sammlung durchsuchen" hidden>
+    <div class="filters" id="filters" hidden>
+      <div class="frow"><select id="fArt" aria-label="Art des Gesangs"></select><select id="fSrc" aria-label="Quelle"></select></div>
+      <input class="search" id="search" type="search" placeholder="Incipit oder Titel …" aria-label="Nach Incipit oder Titel suchen" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <div class="fstat" id="fStat" hidden><span id="fCount" hidden></span><button class="linkbtn" id="fReset" type="button" hidden>Filter zurücksetzen</button></div>
+    </div>
     <div class="newf" id="newFolderSide" hidden><input class="search" id="newFolderSideIn" placeholder="Name, z. B. Alleluia" aria-label="Name des neuen Ordners"><button class="btn small" id="newFolderSideOk" type="button">Anlegen</button></div>
     <div class="list" id="list"></div>
     <button class="btn small danger" id="clearAll" type="button" hidden>Alle Gesänge entfernen</button>
@@ -389,7 +405,7 @@ function orderedFolders(){
 let saveT=0;
 function saveLib(){clearTimeout(saveT);saveT=setTimeout(saveNow,250);}
 async function saveNow(){
-  const lib=LIB.map(({_t,_m,_k,...rest})=>rest);
+  const lib=LIB.map(({_t,_m,_k,_i,...rest})=>rest);
   if(IDB){try{await idbSet('state',{lib,folders:FOLDERS,closed:[...CLOSED],cur:curId});storageOk=true;
       try{[LKEY,CKEY,FKEY,XKEY].forEach(k=>localStorage.removeItem(k));}catch(_){}}
     catch(_){storageOk=false;}}
@@ -401,41 +417,82 @@ function libNoteState(){
   if(!storageOk){n.textContent='Der Browser verweigert das dauerhafte Speichern (z. B. im privaten Fenster). Die Sammlung bleibt verfügbar, bis die Seite geschlossen wird.';n.className='libnote warn';}
   else{n.textContent='gabc-Dateien oder eine ZIP-Datei öffnen. Einsortiert wird nach office-part (Introitus, Graduale …), sonst nach dem Ordner in der ZIP-Datei. Die Sammlung bleibt in diesem Browser gespeichert.'+(DIR?' Löschen blendet verknüpfte Dateien nur aus; auf der Festplatte bleibt alles unverändert.':'');n.className='libnote';}
 }
-function titleOf(it){if(it._k===it.src&&it._t)return it._t;it._k=it.src;it._m=null;return it._t=titleRaw(it);}
-function titleRaw(it){const h=headerOf(it.src);return h.name||(it.file||'').split('/').pop().replace(/\.(gabc|txt)$/i,'')||'Ohne Titel';}
-function metaOf(it){if(it._k===it.src&&it._m)return it._m;titleOf(it);return it._m=metaRaw(it);}
-function metaRaw(it){const h=headerOf(it.src);return [h.office,h.mode?'Modus '+(ROMAN[parseInt(h.mode)]||h.mode):''].filter(Boolean).join(' · ')||it.file||'gabc';}
+const fold=t=>(t||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/æ/g,'ae').replace(/œ/g,'oe').replace(/j/g,'i').replace(/v/g,'u').replace(/[^a-z0-9 ]+/g,' ').replace(/\s+/g,' ').trim();
+function incipitOf(src){
+  const i=src.search(/^%%\s*$/m);let b=i>=0?src.slice(src.indexOf('\n',i)+1):src;
+  b=b.replace(/(^|[^\\])%[^\n]*/g,'$1').replace(/<v>[\s\S]*?<\/v>/g,'').replace(/<eu>[\s\S]*?<\/eu>/g,'').replace(/<alt>[\s\S]*?<\/alt>/g,'').replace(/<sp>[\s\S]*?<\/sp>/g,' ')
+   .replace(/\([^)]*\)/g,'').replace(/<[^>]*>/g,'').replace(/[*†{}]/g,' ').replace(/\s+/g,' ').trim();
+  const w=b.split(' ').filter(Boolean).slice(0,7).join(' ');
+  return w?w.charAt(0)+w.slice(1).toLowerCase():'';
+}
+function sourceOf(h,file){
+  let b=(h.book||'').split(/\s*[&;]\s*/)[0].replace(/,?\s*(p|pp|pag|S|s)\.\s*\d.*$/,'').replace(/,\s*(\d{4})\b/,' $1').trim();
+  if(b)return b;
+  const parts=(file||'').split('/').pop().replace(/\.(gabc|txt)$/i,'').split('--');
+  if(parts.length>=3&&parts[parts.length-1])return parts[parts.length-1].replace(/[_-]+/g,' ').replace(/\b([a-zäöü])/g,c=>c.toUpperCase()).trim();
+  return '';
+}
+function artOf(h){const r=FOLDER_RULES.find(([re])=>re.test(h.office||''));return r?r[1]:(h.office?h.office.charAt(0).toUpperCase()+h.office.slice(1):'');}
+function infoOf(it){
+  if(it._k===it.src&&it._i)return it._i;
+  const h=headerOf(it.src),inc=incipitOf(it.src);
+  const t=h.name||inc||(it.file||'').split('/').pop().replace(/\.(gabc|txt)$/i,'')||'Ohne Titel';
+  const mode=h.mode?'Modus '+(ROMAN[parseInt(h.mode)]||h.mode):'';
+  const i={t,inc,art:artOf(h),mode,src:sourceOf(h,it.file)};
+  i.norm=fold(t+' '+inc);
+  it._k=it.src;return it._i=i;
+}
+function titleOf(it){return infoOf(it).t;}
+function metaOf(it,withArt){const i=infoOf(it);return [withArt?i.art:'',i.mode,i.src].filter(Boolean).join(' · ')||it.file||'gabc';}
 const ICON={
   del:'<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4.5h11M6 4.5V3h4v1.5M4 4.5l.7 8.5h6.6l.7-8.5M6.7 7v4M9.3 7v4"/></svg>',
   ren:'<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10.5 2.5l3 3-8 8H2.5v-3z M9 4l3 3"/></svg>',
   chev:'<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5l4.5 4.5L6 12.5"/></svg>',
   fold:'<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.8 4.2c0-.8.6-1.4 1.4-1.4h3l1.5 1.6h5.1c.8 0 1.4.6 1.4 1.4v6.3c0 .8-.6 1.4-1.4 1.4H3.2c-.8 0-1.4-.6-1.4-1.4z"/></svg>'};
 function iconBtn(kind,label,fn,cls){const b=document.createElement('button');b.type='button';b.className='ib '+(cls||kind);b.title=label;b.setAttribute('aria-label',label);b.innerHTML=ICON[kind];b.addEventListener('click',e=>{e.stopPropagation();fn(b);});return b;}
-function itemLi(it,showFolder){
-  const t=titleOf(it),m=metaOf(it)+(showFolder&&it.folder!==headerOf(it.src).office?' · '+it.folder:'');
+function itemLi(it,flat){
+  const i=infoOf(it),t=i.t,m=metaOf(it,flat||it.folder!==i.art);
   const li=document.createElement('li');if(it.id===curId)li.className='cur';
   const b=document.createElement('button');b.type='button';b.className='pick';
   const st=document.createElement('span');st.className='t';st.textContent=t;
   const sm=document.createElement('span');sm.className='m';sm.textContent=m;
-  b.append(st,sm);b.addEventListener('click',()=>select(it.id));
+  b.append(st);
+  const ft=fold(t),fi=fold(i.inc);
+  if(fi&&!ft.startsWith(fi)&&!fi.startsWith(ft)){const si=document.createElement('span');si.className='inc';si.textContent=i.inc+' …';b.append(si);}
+  b.append(sm);b.addEventListener('click',()=>select(it.id));
   li.append(b,iconBtn('del',t+' aus der Sammlung entfernen',()=>removeItems([it.id]),'del'));
   return li;
 }
 let renaming=null,folderArmed=null,folderArmTimer=0;
+function fillFilters(V){
+  const cnt=(key)=>{const m=new Map();V.forEach(it=>{const k=infoOf(it)[key];if(k)m.set(k,(m.get(k)||0)+1);});return m;};
+  const fillSel=(sel,map,all,order)=>{const cur=sel.value;sel.innerHTML='';const o0=document.createElement('option');o0.value='';o0.textContent=all;sel.append(o0);
+    [...map.keys()].sort(order).forEach(k=>{const o=document.createElement('option');o.value=k;o.textContent=k+' ('+map.get(k)+')';sel.append(o);});
+    sel.value=map.has(cur)?cur:'';};
+  const rank=f=>{const i=LITURGY.indexOf(f);return i<0?100:i;};
+  const arts=cnt('art'),srcs=cnt('src');
+  fillSel($('fArt'),arts,'Alle Arten',(a,b)=>rank(a)-rank(b)||a.localeCompare(b,'de'));
+  fillSel($('fSrc'),srcs,'Alle Quellen',(a,b)=>a.localeCompare(b,'de'));
+  $('fArt').hidden=arts.size<1;$('fSrc').hidden=srcs.size<2;
+}
 function renderList(){
-  const q=$('search').value.trim().toLowerCase();
+  const q=fold($('search').value),fa=$('fArt').value,fq=$('fSrc').value;
   const box=$('list');box.innerHTML='';
   const V=vis();
-  $('search').hidden=V.length<8;
+  $('filters').hidden=V.length<2;fillFilters(V);
   $('libCount').textContent=V.length+(V.length===1?' Gesang':' Gesänge');
   $('clearAll').hidden=V.length<2;disarmClear();
   const byTitle=(a,b)=>titleOf(a).localeCompare(titleOf(b),'de');
-  if(q){
+  if(q||fa||fq){
     const ul=document.createElement('ul');
-    V.filter(it=>(titleOf(it)+' '+metaOf(it)+' '+it.folder+' '+(it.file||'')).toLowerCase().includes(q)).sort(byTitle).forEach(it=>ul.append(itemLi(it,true)));
-    if(!ul.children.length){const li=document.createElement('li');li.className='empty';li.textContent='Kein Gesang passt zur Suche.';ul.append(li);}
+    const hits=V.filter(it=>{const i=infoOf(it);return (!fa||i.art===fa)&&(!fq||i.src===fq)&&(!q||i.norm.includes(q));}).sort(byTitle);
+    $('fCount').textContent=hits.length+' Treffer';$('fCount').hidden=false;$('fReset').hidden=false;$('fStat').hidden=false;
+    hits.slice(0,500).forEach(it=>ul.append(itemLi(it,true)));
+    if(hits.length>500){const li=document.createElement('li');li.className='empty';li.textContent='Die ersten 500 von '+hits.length+' Treffern. Bitte die Suche eingrenzen.';ul.append(li);}
+    if(!hits.length){const li=document.createElement('li');li.className='empty';li.textContent='Kein Gesang passt zu dieser Auswahl.';ul.append(li);}
     box.append(ul);fillFolderSel();return;
   }
+  $('fCount').hidden=true;$('fReset').hidden=true;$('fStat').hidden=true;
   const fs=orderedFolders();
   if(!fs.length){const p=document.createElement('div');p.className='empty';p.textContent='Die Sammlung ist leer.';box.append(p);}
   fs.forEach(f=>{
@@ -638,8 +695,23 @@ function vowelOf(t){
   const m=s.match(/[aeiouy]/);if(!m)return 'a';return m[0]==='y'?'i':m[0];
 }
 const VERSE_RE=/^\s*(Ps\.|℣|V\.|Vers)/;
+/* gabc-Steuerzeichen, die der Notensatz nicht kennt, vor dem Setzen bereinigen */
+const SP_MAP={"V/":"℣","R/":"℟","A/":"Ⓐ","*":"*","+":"†","-":"–","ae":"æ","'ae":"ǽ","'æ":"ǽ","oe":"œ","'oe":"œ́","'œ":"œ́","AE":"Æ","OE":"Œ"};
+function cleanGabc(src){
+  const i=src.search(/^%%\s*$/m);
+  let head='',body=src;
+  if(i>=0){const j=src.indexOf('\n',i);head=src.slice(0,j+1);body=src.slice(j+1);}
+  body=body.replace(/(^|[^\\])%[^\n]*/g,'$1');                       // Kommentare
+  body=body.replace(/<v>[\s\S]*?<\/v>/g,'');                         // LaTeX-Verbatim
+  body=body.replace(/<sp>([\s\S]*?)<\/sp>/g,(m,x)=>/^[VRA]\/$/.test(x.trim())?m:SP_MAP[x.trim()]!==undefined?SP_MAP[x.trim()]:x);
+  body=body.replace(/<\/?(nlba|eu|clear|pr|e|nv)(:[^>]*)?>/g,'');      // Satzanweisungen
+  body=body.replace(/<sc>([\s\S]*?)<\/sc>/g,(m,x)=>x.toUpperCase());
+  body=body.replace(/<(\/?)u>/g,'<$1ul>');
+  body=body.replace(/<(?!\/?(i|b|ul|c|alt|sp)>)[^<>()]*>/g,'');           // übrige unbekannte Tags
+  return head+body;
+}
 function buildScore(src){
-  const h=headerOf(src);curHead=h;
+  const h=headerOf(src);curHead=h;src=cleanGabc(src);
   CTX=new exsurge.ChantContext();
   CTX.setFont("'Alegreya', Georgia, serif",15.5);
   CTX.setRubricColor('var(--rubric)');
@@ -690,7 +762,7 @@ function layout(){
   noteEls=new Map();lyrEls=new Map();
   box.querySelectorAll('.note[element-index]').forEach(e=>{const k=+e.getAttribute('element-index');if(!noteEls.has(k))noteEls.set(k,[]);noteEls.get(k).push(e);});
   box.querySelectorAll('text[source-index]').forEach(e=>{const k=+e.getAttribute('source-index');if(!lyrEls.has(k))lyrEls.set(k,e);});
-  lit=[];litLine=null;
+  lit=[];litLine=null;halos=[];
   if(session){const it=session.items[session.idx];if(it&&!it.rest)highlight(it.ev);}
 }
 
@@ -839,13 +911,25 @@ let wakeLock=null;
 async function wake(on){try{if(on&&!wakeLock&&navigator.wakeLock){wakeLock=await navigator.wakeLock.request('screen');wakeLock.addEventListener('release',()=>{wakeLock=null;});}
   else if(!on&&wakeLock){await wakeLock.release();wakeLock=null;}}catch(_){wakeLock=null;}}
 
-let lit=[],litLine=null;
+let lit=[],litLine=null,halos=[];
+function haloFor(el,cls,pad){
+  const svg=el.ownerSVGElement;if(!svg||!el.getBoundingClientRect)return;
+  const r=el.getBoundingClientRect();if(!r.width&&!r.height)return;
+  const defs=svg.querySelector('defs'),host=defs?defs.parentNode:svg;
+  let m;try{m=host.getScreenCTM().inverse();}catch(_){return;}
+  const p1=new DOMPoint(r.left,r.top).matrixTransform(m),p2=new DOMPoint(r.right,r.bottom).matrixTransform(m);
+  const x=Math.min(p1.x,p2.x)-pad,y=Math.min(p1.y,p2.y)-pad,w=Math.abs(p2.x-p1.x)+2*pad,h=Math.abs(p2.y-p1.y)+2*pad;
+  const rc=document.createElementNS('http://www.w3.org/2000/svg','rect');
+  rc.setAttribute('class',cls);rc.setAttribute('x',x);rc.setAttribute('y',y);rc.setAttribute('width',w);rc.setAttribute('height',h);rc.setAttribute('rx',Math.min(w,h)*.3);
+  host.insertBefore(rc,defs?defs.nextSibling:host.firstChild);halos.push(rc);
+}
 function highlight(ev){
   lit.forEach(x=>x.classList.remove('on'));lit=[];
+  halos.forEach(x=>x.remove());halos=[];
   if(ev<0||!EV[ev]||EV[ev].k!=='n')return;
   const e=EV[ev];
-  (noteEls.get(e.el)||[]).forEach(x=>{x.classList.add('on');lit.push(x);});
-  const le=lyrEls.get(e.lyr);if(le){le.classList.add('on');lit.push(le);}
+  (noteEls.get(e.el)||[]).forEach(x=>{x.classList.add('on');lit.push(x);haloFor(x,'hl',3.2);});
+  const le=lyrEls.get(e.lyr);if(le){le.classList.add('on');lit.push(le);haloFor(le,'hl-syl',1.5);}
   const anchor=lit[0];if(!anchor)return;
   const line=anchor.closest('.chantLine');
   if(line&&line!==litLine){litLine=line;const r=line.getBoundingClientRect();
@@ -934,6 +1018,9 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
 $('fileIn').addEventListener('change',e=>{addFiles(e.target.files);e.target.value='';});
 $('dirIn').addEventListener('change',e=>{addFiles(e.target.files);e.target.value='';});
 $('search').addEventListener('input',renderList);
+$('fArt').addEventListener('change',renderList);
+$('fSrc').addEventListener('change',renderList);
+$('fReset').addEventListener('click',()=>{$('search').value='';$('fArt').value='';$('fSrc').value='';renderList();});
 let dragDepth=0;
 window.addEventListener('dragenter',e=>{if([...(e.dataTransfer&&e.dataTransfer.types||[])].includes('Files')){dragDepth++;$('drop').hidden=false;}});
 window.addEventListener('dragleave',()=>{dragDepth=Math.max(0,dragDepth-1);if(!dragDepth)$('drop').hidden=true;});
