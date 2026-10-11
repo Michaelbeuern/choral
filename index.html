@@ -425,11 +425,30 @@ function incipitOf(src){
   const w=b.split(' ').filter(Boolean).slice(0,7).join(' ');
   return w?w.charAt(0)+w.slice(1).toLowerCase():'';
 }
+/* Quelle auf das Buch reduzieren: "Graduale Romanum, 1908, p. 123" -> "Graduale Romanum 1908" */
+const BOOK_ABBR={gr:'Graduale Romanum',am:'Antiphonale Monasticum',lu:'Liber Usualis',gt:'Graduale Triplex',gn:'Graduale Novum',
+  lh:'Liber Hymnarius',ar:'Antiphonale Romanum',gs:'Graduale Simplex',om:'Ordo Missae',ps:'Processionale Monasticum',pm:'Processionale Monasticum',
+  bm:'Breviarium Monasticum',lr:'Liber Responsorialis',ant:'Antiphonale',grad:'Graduale'};
+const SMALL=new Set(['de','et','pro','ad','in','cum','ex','e','of','the','and','for','und','der','die','das','des','du','la','le','les','et']);
+function bookName(raw){
+  let b=(raw||'').split(/\s*[&;+|]\s*|\s+\/\s+/)[0].replace(/[_]+/g,' ').replace(/\s+/g,' ').trim();
+  if(!b)return '';
+  const ym=b.match(/\b(1[4-9]\d\d|20\d\d)\b/);
+  const year=ym?ym[1]:'';
+  let t=ym?b.slice(0,ym.index):b;
+  // Seitenangaben, Nummern, Klammern und Satzzeichen am Ende entfernen
+  t=t.replace(/\((?:[^()]*)\)?\s*$/,' ').replace(/\b(p|pp|pag|page|pages|s|seite|f|fol|nr|no|n|num)\.?\s*\d[\w\s.,\-–]*$/i,'')
+     .replace(/[\s,.:;\-–(]+\d+[a-z]?(\s*[-–]\s*\d+[a-z]?)?\s*$/i,'').replace(/[\s,.:;\-–(]+$/,'').trim();
+  t=t.replace(/\s*\([^)]*\)\s*/g,' ').replace(/\s+/g,' ').trim();
+  if(!t&&!year)return '';
+  const ab=BOOK_ABBR[t.toLowerCase().replace(/\./g,'')];if(ab)t=ab;
+  t=t.split(' ').map((w,k)=>{const l=w.toLowerCase();if(k>0&&SMALL.has(l))return l;if(/^[A-Z]{2,}$/.test(w)&&w.length<=4)return w;return l.charAt(0).toUpperCase()+l.slice(1);}).join(' ');
+  return (t+(year?' '+year:'')).trim();
+}
 function sourceOf(h,file){
-  let b=(h.book||'').split(/\s*[&;]\s*/)[0].replace(/,?\s*(p|pp|pag|S|s)\.\s*\d.*$/,'').replace(/,\s*(\d{4})\b/,' $1').trim();
-  if(b)return b;
+  const b=bookName(h.book);if(b)return b;
   const parts=(file||'').split('/').pop().replace(/\.(gabc|txt)$/i,'').split('--');
-  if(parts.length>=3&&parts[parts.length-1])return parts[parts.length-1].replace(/[_-]+/g,' ').replace(/\b([a-zäöü])/g,c=>c.toUpperCase()).trim();
+  if(parts.length>=3&&parts[parts.length-1])return bookName(parts[parts.length-1].replace(/[_-]+/g,' '));
   return '';
 }
 function artOf(h){const r=FOLDER_RULES.find(([re])=>re.test(h.office||''));return r?r[1]:(h.office?h.office.charAt(0).toUpperCase()+h.office.slice(1):'');}
